@@ -3,7 +3,10 @@ use std::process::Command;
 use std::str::FromStr;
 use std::{env, fs, string};
 
-fn delete_files(base: PathBuf) -> bool {
+use windows::core::{PCWSTR, PWSTR};
+use windows::Win32::Foundation::HWND;
+use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
+pub fn delete_files(base: PathBuf) -> bool {
     let mut successful = true;
     let path_to_be_deleted = vec![
         base.clone().join("../InfinityNikki.exe"),
@@ -20,12 +23,12 @@ fn delete_files(base: PathBuf) -> bool {
     }
     return successful;
 }
-enum ServerType {
+pub enum ServerType {
     GLOBAL,
     CHINA,
 }
 
-fn copy_files(server_type: &ServerType) -> bool {
+pub fn copy_files(server_type: &ServerType) -> bool {
     let mut successful = true;
     let resource_base_path = env::current_dir().expect("Failed to get current directory");
     let resource_base_path = match server_type {
@@ -45,7 +48,9 @@ fn copy_files(server_type: &ServerType) -> bool {
     for path in path_to_copy {
         let exists = fs::exists(&path).expect("");
         if !exists {
-            let file = fs::File::create(&path).expect("Failed to create file");
+            if let Err(e) = fs::File::create(&path) {
+                return false;
+            }
         }
         if let Err(e) = std::fs::copy(&path, &copy_destination.join(path.file_name().unwrap())) {
             successful = false;
@@ -61,7 +66,7 @@ fn copy_files(server_type: &ServerType) -> bool {
     return successful;
 }
 
-fn open_launcher(server_type: &ServerType) -> Result<(), String> {
+pub fn open_launcher(server_type: &ServerType) -> Result<(), String> {
     let launcher_path = match server_type {
         ServerType::GLOBAL => env::current_dir()
             .expect("Failed to get current directory")
@@ -79,46 +84,40 @@ fn open_launcher(server_type: &ServerType) -> Result<(), String> {
     }
     Ok(())
 }
-
-fn main() {
-    println!("请输入需要切换的服务器代号");
-    println!("1.国服");
-    println!("2.国际服");
-    let mut x = String::new();
-    std::io::stdin().read_line(&mut x).expect("行号读取失败");
-    let mut x = x.trim().to_string();
-    let server_code = i32::from_str(&x).expect("请输入正确的数字");
-    let server_type = match server_code {
-        1 => ServerType::CHINA,
-        2 => ServerType::GLOBAL,
-        _ => {
-            println!("请输入正确的数字!");
-            return;
-        }
-    };
+pub fn select_and_open(server_type: &ServerType) {
     let mut successful = true;
-    successful = successful & delete_files(PathBuf::from("."));
-    successful = successful & copy_files(&server_type);
-    if successful {
-        println!(
-            "服务器已经切换到{}",
-            match server_type {
-                ServerType::CHINA => "国服",
-                ServerType::GLOBAL => "国际服",
-                _ => return,
-            }
-        );
-        println!("正在打开启动器客户端......");
-        if let Err(e) = open_launcher(&server_type) {
-            println!("打开启动器失败:{}", e);
-            println!("输入任意内容以退出:");
-            std::io::stdin().read_line(&mut x).unwrap();
+    successful = successful && delete_files(PathBuf::from("."));
+    successful = successful & copy_files(&ServerType::GLOBAL);
+    if !successful {
+        let text_wide_content: Vec<u16> = "服务器切换失败 请重新启动尝试!"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        let text_wide_title: Vec<u16> = "错误".encode_utf16().chain(std::iter::once(0)).collect();
+        unsafe {
+            MessageBoxW(
+                HWND(std::ptr::null_mut()), // 父窗口句柄，0 表示无父窗口
+                PCWSTR(text_wide_content.as_ptr()),
+                PCWSTR(text_wide_title.as_ptr()),
+                MB_OK,
+            );
         }
     } else {
-        println!("切换出现异常 请重新运行!");
-        println!("输入任意内容以退出:");
-        std::io::stdin().read_line(&mut x).unwrap();
+        if let Err(e) = open_launcher(&ServerType::GLOBAL) {
+            let text_wide_content: Vec<u16> = "启动器开启失败 请重新启动尝试!"
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect();
+            let text_wide_title: Vec<u16> =
+                "错误".encode_utf16().chain(std::iter::once(0)).collect();
+            unsafe {
+                MessageBoxW(
+                    HWND(std::ptr::null_mut()), // 父窗口句柄，0 表示无父窗口
+                    PCWSTR(text_wide_content.as_ptr()),
+                    PCWSTR(text_wide_title.as_ptr()),
+                    MB_OK,
+                );
+            }
+        }
     }
-
-    return;
 }
