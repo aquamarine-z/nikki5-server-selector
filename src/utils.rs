@@ -13,14 +13,14 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
 #[derive(Serialize, Deserialize, Clone)]
 struct Config {
-    pub game_version: String,
+    pub game_version: i32,
 }
 static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();
 pub fn load_config() {
     let config_path = PathBuf::from("./config.toml");
     let mut config_content = "".to_string();
     let default = toml! {
-        game_version="341"
+        game_version=341
     };
     if !config_path.exists() {
         println!("No config file,trying to create a new one");
@@ -46,9 +46,7 @@ pub fn load_config() {
                 e.to_string()
             );
         }
-        Config {
-            game_version: "341".to_string(),
-        }
+        toml::from_str(&toml::to_string(&default).unwrap()).expect("TODO: panic message")
     };
     if let Err(e) = CONFIG.set(Mutex::new(config.clone())) {
         let config_mutex = CONFIG.get().unwrap();
@@ -127,6 +125,14 @@ pub fn copy_files(server_type: &ServerType) -> bool {
         },
         "version":game_version,
     });
+    if let Ok(product_database_content)  = serde_json::to_string(&database_info_object){
+        if let Err(e)=fs::write(&product_database_path,product_database_content){
+            println!("写入 product.db 文件错误!");
+            return false;
+        }
+    }else{
+        return false;
+    }
     println!("客户端文件已切换成功!");
     return successful;
 }
@@ -152,7 +158,7 @@ pub fn open_launcher(server_type: &ServerType) -> Result<(), String> {
 pub fn select_and_open(server_type: &ServerType) {
     let mut successful = true;
     successful = successful && delete_files(PathBuf::from("."));
-    successful = successful & copy_files(&ServerType::GLOBAL);
+    successful = successful & copy_files(&server_type);
     if !successful {
         let text_wide_content: Vec<u16> = "服务器切换失败 请重新启动尝试!"
             .encode_utf16()
@@ -168,7 +174,7 @@ pub fn select_and_open(server_type: &ServerType) {
             );
         }
     } else {
-        if let Err(e) = open_launcher(&ServerType::GLOBAL) {
+        if let Err(e) = open_launcher(&server_type) {
             let text_wide_content: Vec<u16> = "启动器开启失败 请重新启动尝试!"
                 .encode_utf16()
                 .chain(std::iter::once(0))
