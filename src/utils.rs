@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 use std::{env, fs, string};
-
+use serde_json::json;
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
@@ -10,8 +10,8 @@ pub fn delete_files(base: PathBuf) -> bool {
     let mut successful = true;
     let path_to_be_deleted = vec![
         base.clone().join("../InfinityNikki.exe"),
-        base.clone().join("../product.db"),
-        base.clone().join("../productVersion.json"),
+        //base.clone().join("../product.db"),
+        //base.clone().join("../productVersion.json"),
     ];
     for path in path_to_be_deleted {
         if path.exists() {
@@ -37,8 +37,8 @@ pub fn copy_files(server_type: &ServerType) -> bool {
     };
     let path_to_copy = vec![
         resource_base_path.clone().join("InfinityNikki.exe"),
-        resource_base_path.clone().join("product.db"),
-        resource_base_path.clone().join("productVersion.json"),
+        //resource_base_path.clone().join("product.db"),
+        //resource_base_path.clone().join("productVersion.json"),
     ];
     let copy_destination = env::current_dir()
         .expect("Failed to get current directory")
@@ -62,6 +62,20 @@ pub fn copy_files(server_type: &ServerType) -> bool {
             );
         }
     }
+    let product_database_path=copy_destination.clone().join("product.db");
+    if !product_database_path.exists(){
+        if let Err(e) = fs::File::create(&product_database_path) {
+            return false;
+        }
+    }
+    let database_info_object=json!({
+        "name":match server_type{
+            ServerType::CHINA=>"InfinityNikki Launcher",
+            ServerType::GLOBAL=>"InfinityNikkiGlobal Launcher",
+            _=>{return false;},
+        },
+        "version":"341" 
+    });
     println!("客户端文件已切换成功!");
     return successful;
 }
