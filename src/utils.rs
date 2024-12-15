@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -15,7 +15,7 @@ use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, M
 struct Config {
     pub game_version: i32,
 }
-static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();
+static CONFIG: OnceLock<Mutex<RefCell<Config>>> = OnceLock::new();
 pub fn load_config() {
     let config_path = PathBuf::from("./config.toml");
     let mut config_content = "".to_string();
@@ -48,10 +48,10 @@ pub fn load_config() {
         }
         toml::from_str(&toml::to_string(&default).unwrap()).expect("TODO: panic message")
     };
-    if let Err(e) = CONFIG.set(Mutex::new(config.clone())) {
+    if let Err(e) = CONFIG.set(Mutex::new(RefCell::new(config.clone()))) {
         let config_mutex = CONFIG.get().unwrap();
         let mut mutex_lock = config_mutex.lock().unwrap();
-        mutex_lock.game_version = config.clone().game_version;
+        mutex_lock.replace(config);
     }
 }
 pub fn delete_files(base: PathBuf) -> bool {
@@ -116,7 +116,7 @@ pub fn copy_files(server_type: &ServerType) -> bool {
             return false;
         }
     }
-    let game_version=CONFIG.get().unwrap().clone().lock().unwrap().game_version.clone();
+    let game_version=CONFIG.get().unwrap().clone().lock().unwrap().borrow().game_version.clone();
     let database_info_object = json!({
         "name":match server_type{
             ServerType::CHINA=>"InfinityNikki Launcher",

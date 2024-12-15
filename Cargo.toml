@@ -20,4 +20,4 @@ lazy_static = "1.5.0"
 toml = "0.8.19"
 
 [build-dependencies]
-embed-resource = "1.5.1"
+embed-resource = "3.0.1"

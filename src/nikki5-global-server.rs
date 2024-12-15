@@ -4,7 +4,7 @@ mod utils;
 
 
 fn main() {
-        load_config();
+    load_config();
     utils::select_and_open(&ServerType::GLOBAL);
     return;
 }
