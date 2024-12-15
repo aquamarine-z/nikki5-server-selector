@@ -1,9 +1,10 @@
+use crate::utils::{copy_files, delete_files, load_config, open_launcher, ServerType};
 use std::path::PathBuf;
 use std::str::FromStr;
-use crate::utils::{copy_files, delete_files, open_launcher, ServerType};
 
 mod utils;
 fn main() {
+    load_config();
     println!("请输入需要切换的服务器代号");
     println!("1.国服");
     println!("2.国际服");

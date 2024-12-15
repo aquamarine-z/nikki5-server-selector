@@ -1,11 +1,61 @@
-use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::cell::OnceCell;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
+use std::sync::{Mutex, OnceLock};
 use std::{env, fs, string};
-use serde_json::json;
+use toml::toml;
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
+#[derive(Serialize, Deserialize, Clone)]
+struct Config {
+    pub game_version: String,
+}
+static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();
+pub fn load_config() {
+    let config_path = PathBuf::from("./config.toml");
+    let mut config_content = "".to_string();
+    let default = toml! {
+        game_version="341"
+    };
+    if !config_path.exists() {
+        println!("No config file,trying to create a new one");
+        if let Ok(file) = fs::File::create(&config_path) {
+            if let Err(e) = fs::write(&config_path, toml::to_string(&default.clone()).unwrap()) {
+                println!(
+                    "Err writing default config into {} :{}",
+                    &config_path.to_str().unwrap(),
+                    e.to_string()
+                );
+            }
+        } else {
+            config_content = "".to_string();
+        }
+    }
+    let config: Config = if let Ok(config) = toml::from_str(&config_content) {
+        config
+    } else {
+        if let Err(e) = fs::write(&config_path, toml::to_string(&default.clone()).unwrap()) {
+            println!(
+                "Err writing default config into {} :{}",
+                &config_path.to_str().unwrap(),
+                e.to_string()
+            );
+        }
+        Config {
+            game_version: "341".to_string(),
+        }
+    };
+    if let Err(e) = CONFIG.set(Mutex::new(config.clone())) {
+        let config_mutex = CONFIG.get().unwrap();
+        let mut mutex_lock = config_mutex.lock().unwrap();
+        mutex_lock.game_version = config.clone().game_version;
+    }
+}
 pub fn delete_files(base: PathBuf) -> bool {
     let mut successful = true;
     let path_to_be_deleted = vec![
@@ -62,19 +112,20 @@ pub fn copy_files(server_type: &ServerType) -> bool {
             );
         }
     }
-    let product_database_path=copy_destination.clone().join("product.db");
-    if !product_database_path.exists(){
+    let product_database_path = copy_destination.clone().join("product.db");
+    if !product_database_path.exists() {
         if let Err(e) = fs::File::create(&product_database_path) {
             return false;
         }
     }
-    let database_info_object=json!({
+    let game_version=CONFIG.get().unwrap().clone().lock().unwrap().game_version.clone();
+    let database_info_object = json!({
         "name":match server_type{
             ServerType::CHINA=>"InfinityNikki Launcher",
             ServerType::GLOBAL=>"InfinityNikkiGlobal Launcher",
             _=>{return false;},
         },
-        "version":"341" 
+        "version":game_version,
     });
     println!("客户端文件已切换成功!");
     return successful;
